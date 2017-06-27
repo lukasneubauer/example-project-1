@@ -1,0 +1,1077 @@
+FORMAT: 1A
+HOST: http://example.com
+
+# API
+
+## Notice
+
+Some requests declare header **Content-Type** with value **application/json**, but the API itself does not check this header,
+so it does not need to be present in requests at all. It does however, check JSON structure in request body, if there is any.
+
+Some requests do more than just one thing, which is against **single responsibility principle**. For example,
+some requests additionally send emails, but this is only to centralize the logic right in the API,
+so there is less logic on the client application side.
+
+## HTTP Headers
+
+This API adds three new HTTP headers to some requests. These are:
+
+* Api-Key
+* Api-Client-Id
+* Api-Token
+
+Also, there is one new HTTP header in some responses. This one is:
+
+* Api-Token
+
+| Header        | Purpose                                                                                                                                                    |
+|---------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Api-Key       | Secret key which belongs to API and client application sends it in each request<br>so API knows that the request came from the expected client application |
+| Api-Client-Id | Used to identify the client application                                                                                                                    |
+| Api-Token     | Used to identify the user                                                                                                                                  |
+
+* **Api-Client-Id** must be generated on client application side before sending login request.
+The same generated value must be used as a header during the session on every other request where Api-Client-Id is required.
+
+* **Api-Token** is generated on server after each login request and it is send back in its response body.
+It has limited lifetime, which means, that it does not last for the entirety of the session.
+After expiration, the API will automatically generate new one, therefore the client application should always check for its value in response header.
+
+* Both **Api-Client-Id** and **Api-Token** should be saved as a cookie, e.g. `SESSION_ID` on the client application side.
+
+## Requests Categorization
+
+Requests can be categorized in several groups.
+
+### Requests for which the user must be logged in are
+
+* `/-/logout`
+* `/-/unlock-session`
+* `/-/delete-account`
+* `/-/profile`
+* `/-/settings`
+* `/-/subjects`
+* `/-/teachers`
+* `/-/create-course`
+* `/-/update-course`
+* `/-/get-course`
+* `/-/delete-course`
+* `/-/create-course-subscription`
+* `/-/delete-course-subscription`
+* `/-/create-lesson`
+* `/-/update-lesson`
+* `/-/get-lesson`
+* `/-/delete-lesson`
+* `/-/create-one-time-lesson`
+* `/-/calendar`
+* `/-/send-payment`
+
+### Requests for which the user does not have to be logged in are
+
+* `/-/register`
+* `/-/login`
+* `/-/security-code-confirmation`
+* `/-/request-email-to-reset-password`
+* `/-/reset-password`
+* `/-/activate-account`
+* `/-/check-user-by-email-and-token`
+
+### Administrative requests
+
+* `/-/ping`
+
+## UUID
+
+Instead of auto-incrementing integers we use UUID (version 4) for identifier properties.
+
+## Possible Responses From Server
+
+| Status Code | Explanation                                                                 |
+|-------------|-----------------------------------------------------------------------------|
+| 500         | Server Error - no response body                                             |
+| 400         | API Error - submitted request is not valid (check "error" in response body) |
+| 200         | Successful Request                                                          |
+
+If server returns response with status code **400**, there will be an **error.code** and **error.message** describing the error, e.g.
+
+```
+{
+    "error": {
+        "code": 1,
+        "message": "Missing mandatory 'Api-Key' http header."
+    }
+}
+```
+
+See list of possible API errors below.
+
+## API Errors
+
+| Code | Message                                                                                                                                                                               | Example                                                                                                                                                                               |
+|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1    | Missing mandatory '?' http header.                                                                                                                                                    | Missing mandatory 'Api-Key' http header.                                                                                                                                              |
+| 2    | Missing value for '?' http header.                                                                                                                                                    | Missing value for 'Api-Key' http header.                                                                                                                                              |
+| 3    | Invalid value for '?' http header.                                                                                                                                                    | Invalid value for 'Api-Key' http header.                                                                                                                                              |
+| 4    | Usage of incorrect http method '?'. '?' was expected.                                                                                                                                 | Usage of incorrect http method 'GET'. 'POST' was expected.                                                                                                                            |
+| 5    | Missing mandatory '?' url parameter.                                                                                                                                                  | Missing mandatory 'email' url parameter.                                                                                                                                              |
+| 6    | Missing value for '?' url parameter.                                                                                                                                                  | Missing value for 'email' url parameter.                                                                                                                                              |
+| 7    | No data found for '?' url parameter.                                                                                                                                                  | No data found for 'email' url parameter.                                                                                                                                              |
+| 8    | Missing JSON in request body.                                                                                                                                                         | -                                                                                                                                                                                     |
+| 9    | Malformed JSON in request body.                                                                                                                                                       | -                                                                                                                                                                                     |
+| 10   | Missing mandatory property '?' in request body.                                                                                                                                       | Missing mandatory property 'email' in request body.                                                                                                                                   |
+| 11   | Expected ? in '?', but got ? in request body.                                                                                                                                         | Expected string in 'email', but got integer in request body.                                                                                                                          |
+| 12   | Expected value in '?', but got ? (?) in request body.                                                                                                                                 | Expected value in 'email', but got "" (empty string) in request body.                                                                                                                 |
+| 13   | No data found for '?' in request body.                                                                                                                                                | No data found for 'email' in request body.                                                                                                                                            |
+| 14   | Value for '?' in request body is already taken.                                                                                                                                       | Value for 'email' in request body is already taken.                                                                                                                                   |
+| 15   | Numeric value for '?' must be greater than ?, but got ?.                                                                                                                              | Numeric value for 'price' must be greater than 0, but got 0.                                                                                                                          |
+| 16   | Malformed email.                                                                                                                                                                      | -                                                                                                                                                                                     |
+| 17   | Malformed datetime in '?'. Expected string e.g. '2000-12-24 20:30:00'.                                                                                                                | Malformed datetime in 'from'. Expected string e.g. '2000-12-24 20:30:00'.                                                                                                             |
+| 18   | Token has expired. New email was sent.                                                                                                                                                | -                                                                                                                                                                                     |
+| 19   | Malformed uuid.                                                                                                                                                                       | -                                                                                                                                                                                     |
+| 20   | Given datetime '?' does not make any sense.                                                                                                                                           | Given datetime '2000-99-99 99:99:99' does not make any sense.                                                                                                                         |
+| 21   | Datetime in '?' cannot be greater or equal to datetime in '?'.                                                                                                                        | Datetime in 'from' cannot be greater or equal to datetime in 'to'.                                                                                                                    |
+| 22   | Selected user is not teacher.                                                                                                                                                         | -                                                                                                                                                                                     |
+| 23   | User is not teacher, so price must not be set.                                                                                                                                        | -                                                                                                                                                                                     |
+| 24   | User is teacher, so price must be set.                                                                                                                                                | -                                                                                                                                                                                     |
+| 25   | Could not generate unique value for '?' in ? tries.                                                                                                                                   | Could not generate unique value for 'token' in 5 tries.                                                                                                                               |
+| 26   | Cannot subscribe to inactive course.                                                                                                                                                  | -                                                                                                                                                                                     |
+| 27   | Cannot subscribe to ongoing or ended course.                                                                                                                                          | -                                                                                                                                                                                     |
+| 28   | Cannot unsubscribe from ongoing or ended course.                                                                                                                                      | -                                                                                                                                                                                     |
+| 29   | To accept this request the user has to be teacher.                                                                                                                                    | -                                                                                                                                                                                     |
+| 30   | To delete the lesson the user has to be teacher in the given lesson's course.                                                                                                         | -                                                                                                                                                                                     |
+| 31   | To delete the course the user has to be teacher in the given course.                                                                                                                  | -                                                                                                                                                                                     |
+| 32   | Cannot delete lesson from ongoing or ended course.                                                                                                                                    | -                                                                                                                                                                                     |
+| 33   | Cannot delete ongoing or ended course.                                                                                                                                                | -                                                                                                                                                                                     |
+| 34   | Attempt to log into an unconfirmed user account.                                                                                                                                      | -                                                                                                                                                                                     |
+| 35   | Cannot delete teacher with ongoing courses.                                                                                                                                           | -                                                                                                                                                                                     |
+| 36   | Cannot delete student which is subscribed to ongoing courses.                                                                                                                         | -                                                                                                                                                                                     |
+| 37   | Try to execute the last request again please. There was duplicity in generated value for '?'.                                                                                         | Try to execute the last request again please. There was duplicity in generated value for 'token'.                                                                                     |
+| 38   | Session found by api token but its client id does not match with the one provided in header Api-Client-Id. Session has been locked for security reasons.                              | -                                                                                                                                                                                     |
+| 39   | Session is locked. User must re-authenticate.                                                                                                                                         | -                                                                                                                                                                                     |
+| 40   | Incorrect password has been entered. ? attempt(s) left.                                                                                                                               | Incorrect password has been entered. 2 attempt(s) left.                                                                                                                               |
+| 41   | Incorrect password has been entered ? or more times in a row. Account has been locked for security reasons.                                                                           | Incorrect password has been entered 3 or more times in a row. Account has been locked for security reasons.                                                                           |
+| 42   | User's authentication was successful, but since there were ? or more failed login attempts in a row in the past, a security code has been generated and sent on user's email address. | User's authentication was successful, but since there were 3 or more failed login attempts in a row in the past, a security code has been generated and sent on user's email address. |
+| 43   | Incorrect security code has been entered. ? attempt(s) left.                                                                                                                          | Incorrect security code has been entered. 2 attempt(s) left.                                                                                                                          |
+| 44   | Incorrect security code has been entered ? or more times in a row. New security code has been generated and sent on user's email address.                                             | Incorrect security code has been entered 3 or more times in a row. New security code has been generated and sent on user's email address.                                             |
+| 45   | Security code has expired. New security code has been generated and sent on user's email address.                                                                                     | -                                                                                                                                                                                     |
+| 46   | Re-authentication failed. User is trying to use another user's email address.                                                                                                         | -                                                                                                                                                                                     |
+| 47   | Re-authentication failed. Value of old api client id in request body is different than the one in current session.                                                                    | -                                                                                                                                                                                     |
+| 48   | User does not have any security code.                                                                                                                                                 | -                                                                                                                                                                                     |
+| 49   | Cannot subscribe to your own course.                                                                                                                                                  | -                                                                                                                                                                                     |
+| 50   | Cannot unsubscribe from course to which you are not subscribed to.                                                                                                                    | -                                                                                                                                                                                     |
+| 51   | To update the lesson the user has to be teacher in the given lesson's course.                                                                                                         | -                                                                                                                                                                                     |
+| 52   | To update the course the user has to be teacher in the given course.                                                                                                                  | -                                                                                                                                                                                     |
+| 53   | Cannot update lesson from ongoing or ended course.                                                                                                                                    | -                                                                                                                                                                                     |
+| 54   | Cannot update ongoing or ended course.                                                                                                                                                | -                                                                                                                                                                                     |
+| 55   | String length of property '?' must not be longer than ? characters.                                                                                                                   | String length of property 'firstName' must not be longer than 255 characters.                                                                                                         |
+| 56   | Number size of property '?' must not be higher than ?.                                                                                                                                | Number size of property 'price' must not be higher than 4294967295.                                                                                                                   |
+| 57   | Selected timezone '?' is invalid.                                                                                                                                                     | Selected timezone 'XYZ' is invalid.                                                                                                                                                   |
+| 58   | Cannot send payment for the course to which you are not subscribed to.                                                                                                                | -                                                                                                                                                                                     |
+| 59   | Cannot send payment for the same course again.                                                                                                                                        | -                                                                                                                                                                                     |
+| 60   | Cannot send payment for the ongoing or ended course.                                                                                                                                  | -                                                                                                                                                                                     |
+
+It may happen that some of the errors will not be used in the future anymore but will be still listed in the table above to preserve consistency.
+
+See the listing of each request possible errors in their descriptions below.
+
+## Users
+
+User can become either teacher or student only when certain conditions are met. User can also become both teacher and student.
+
+### Becoming Teacher
+
+User will become teacher when he creates his first course. Owner of a course is always a teacher, so when user creates his first course, the system will automatically set him as teacher.
+
+### Becoming Student
+
+User will become student when he subscribes to an existing course for the first time.
+
+## Price Is Always Integer In Cents
+
+When sending request with `price` in body, the value of this property
+must be integer representing the price in cents, e.g. if the price
+is `250`, it must be multiplied by `100`, so it is represented in cents
+as `25000`.
+
+The same rule applies for price in responses which are
+represented in cents too, e.g. if server has to return price `250`
+in response, it will be represented in cents as `25000`.
+
+## Immutable Data Structures In Requests
+
+All data structures in requests should be sent to server without omitting
+any of its optional properties. If there is no value to be set, `null`
+should be used rather than omitting the property from the request altogether.
+
+This practice simplifies testing and debugging very much.
+
+Example of this is property `password` in request to change
+user's settings (`POST /-/settings`). If user did not set new password,
+the request should be sent with property `password` set to `null`:
+
+```
+{
+    "firstName": "Jake",
+    "lastName": "Doe",
+    "email": "jake.doe@example.com",
+    "password": null,
+    "isTeacher": true,
+    "timezone": "Europe/Prague"
+}
+```
+
+Optional properties are listed in request descriptions bellow.
+
+## Registration [/-/register]
+
+### Register New User [POST]
+
+On this request the API will send email to email address given in the `email`
+request body attribute with url pointing to page where the client application
+is expected to create `POST /-/activate-account` request.
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 14, 16, 25, 55 and 57
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+
+    + Body
+
+            {
+                "firstName": "Brand",
+                "lastName": "New",
+                "email": "brand.new@example.com",
+                "password": "secret",
+                "timezone": "Europe/Prague"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+## Login [/-/login]
+
+### Log Existing User In The Application [POST]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 16, 25, 34, 40, 41 and 42
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: CLIENT-ID
+
+    + Body
+
+            {
+                "email": "jake.doe@example.com",
+                "password": "secret"
+            }
+
++ Response 200 (application/json)
+
+    + Body
+
+            {
+                "apiToken": "e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w"
+            }
+
+## Logout [/-/logout]
+
+### Log Existing User Out From The Application [POST]
+
+**Api Errors**: 1, 2, 3, 4, 38 and 39
+
++ Request
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: via1no6ncjoezei8gmk0m3b4s5skycqoimqrn634
+            Api-Token: 2v1ikal8l22gfc3nteszai3qlx7gzt4q11f3sc54u7en9s7rnlajdyzrxoa8b95oyn00uiu9eaox5jwz
+
++ Response 200 (text/plain; charset=UTF-8)
+
+## Unlock Session [/-/unlock-session]
+
+### Re-Authenticate Existing User Back In The Application [POST]
+
+This request does not validate value of **Api-Client-Id** header in session
+because here the value for **Api-Client-Id** has to be generated completely
+new by the client application.
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 16, 40, 41, 42, 46 and 47
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: NEW-CLIENT-ID
+            Api-Token: kl1ubm09r4qmjb56dkc0xbmwfxt1habv4xxwjwzvxxy7dn8bwyynshdrg4smsgfvut2s5ze4zi6y8g9q
+
+    + Body
+
+            {
+                "email": "pete.doe@example.com",
+                "password": "secret",
+                "oldApiClientId": "CLIENT-ID"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+## Security Code Confirmation [/-/security-code-confirmation]
+
+### Security Code Confirmation [POST]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 16, 43, 44, 45 and 48
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+
+    + Body
+
+            {
+                "email": "earl.doe@example.com",
+                "securityCode": "123456789"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+## Request Email To Reset Password [/-/request-email-to-reset-password]
+
+### Request Email To Reset Password [POST]
+
+On this request the API will send email to email address given in the `email`
+request body attribute with url pointing to page containing form to set new password.
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13 and 16
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+
+    + Body
+
+            {
+                "email": "jake.doe@example.com"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+## Reset Password [/-/reset-password]
+
+### Reset Password [POST]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12 and 13
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+
+    + Body
+
+            {
+                "userId": "84833c98-cd1c-4d23-a555-24ae03be349e",
+                "password": "secret"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+## Activate Account [/-/activate-account]
+
+### Activate Account [POST]
+
+On this request the API will check whether **token** given in the `token`
+request body attribute has expired and if so, API will then send
+new account activation email to user's email address.
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 16, 18 and 25
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+
+    + Body
+
+            {
+                "email": "not.active@example.com",
+                "token": "9ppgda5c7bvy95kehyxi"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+## Delete Account [/-/delete-account]
+
+### Delete Existing Account [DELETE]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 19, 35, 36, 38 and 39
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: tkj10fdppcpaseqsl8atie215oawgrb90oi2tbv8
+            Api-Token: qtzytnsqwkxaq6x8f0ezi2g4tfwlc2h3hkj5weblabl51ypx3z149wair246u7n22btdjs14wn7ymzf1
+
+    + Body
+
+            {
+                "id": "c6a07477-d9f0-414e-97d2-4e3a8162297f"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+## Profile [/-/profile]
+
+### Get Current User's Profile [GET]
+
+**Api Errors**: 1, 2, 3, 4, 38 and 39
+
++ Request
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
++ Response 200 (application/json)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+    + Body
+
+            {
+                "id": "2406c756-15a0-411e-ad47-cdc6badc70b7",
+                "firstName": "Jake",
+                "lastName": "Doe",
+                "email": "jake.doe@example.com",
+                "isTeacher": true,
+                "isStudent": true,
+                "timezone": "Europe/Prague",
+                "isActive": true
+            }
+
+## Settings [/-/settings]
+
+### Change Account Settings [POST]
+
+#### Optional properties
+
+- `password`
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 14, 16, 38, 39, 55 and 57
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
+    + Body
+
+            {
+                "firstName": "Jake",
+                "lastName": "Doe",
+                "email": "jake.doe@example.com",
+                "password": "secret",
+                "isTeacher": true,
+                "timezone": "Europe/Prague"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+## Check User By Email And Token [/-/check-user-by-email-and-token?email={email}&token={token}]
+
++ Parameters
+  + email: mike.doe@example.com (required, string)
+  + token: oi91yj5074fu3u1ou09h (required, string)
+
+### Check User By Email And Token [GET]
+
+On this request the API will check whether **token** given in the `token`
+url parameter has expired and if so, API will then send new reset password
+email to user's email address with url pointing to page containing form to
+set new password.
+
+**Api Errors**: 1, 2, 3, 4, 5, 6, 7, 16, 18 and 25
+
++ Request
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+
++ Response 200 (text/plain; charset=UTF-8)
+
+## Subjects [/-/subjects]
+
+### Get All Subjects [GET]
+
+**Api Errors**: 1, 2, 3, 4, 38 and 39
+
++ Request
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
++ Response 200 (application/json)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+    + Body
+
+            [
+                {
+                    "id": "9aa2eb45-e3e9-4fce-b403-c81389dc1152",
+                    "name": "Anglický jazyk"
+                }
+            ]
+
+## Teachers [/-/teachers]
+
+### Get All Teachers [GET]
+
+**Api Errors**: 1, 2, 3, 4, 38 and 39
+
++ Request
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
++ Response 200 (application/json)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+    + Body
+
+            [
+                {
+                    "id": "2406c756-15a0-411e-ad47-cdc6badc70b7",
+                    "firstName": "Jake",
+                    "lastName": "Doe",
+                    "email": "jake.doe@example.com"
+                }
+            ]
+
+## Create Course [/-/create-course]
+
+### Create New Course [POST]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 15, 38, 39, 55 and 56
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
+    + Body
+
+            {
+                "name": "Letní doučování angličtiny",
+                "subject": "Anglický jazyk",
+                "price": 25000
+            }
+
++ Response 200 (application/json)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+    + Body
+
+            {
+                "id": "00000000-0000-4000-a000-000000000000",
+                "name": "Letní doučování angličtiny",
+                "subject": {
+                    "id": "9aa2eb45-e3e9-4fce-b403-c81389dc1152",
+                    "name": "Anglický jazyk"
+                },
+                "price": 25000,
+                "lessons": []
+            }
+
+## Update Course [/-/update-course/{id}]
+
++ Parameters
+  + id: `a5aee4a0-d719-4043-a675-ca44edeb3c80` (required, string)
+
+### Update Existing Course [PATCH]
+
+**Api Errors**: 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 15, 19, 29, 38, 39, 52, 54, 55 and 56
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
+    + Body
+
+            {
+                "name": "Letní doučování angličtiny",
+                "subject": "Anglický jazyk",
+                "price": 25000,
+                "isActive": true
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+## Get Course [/-/get-course/{id}]
+
++ Parameters
+  + id: `cfdbc050-e9be-4204-ab66-1dc04064824b` (required, string)
+
+### Get Existing Course [GET]
+
+**Api Errors**: 1, 2, 3, 4, 7, 19, 38 and 39
+
++ Request
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
++ Response 200 (application/json)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+    + Body
+
+            {
+                "id": "cfdbc050-e9be-4204-ab66-1dc04064824b",
+                "name": "Letní doučování angličtiny",
+                "isActive": true,
+                "subject": {
+                    "id": "9aa2eb45-e3e9-4fce-b403-c81389dc1152",
+                    "name": "Anglický jazyk"
+                },
+                "price": 25000,
+                "lessons": [
+                    {
+                        "id": "d5f3a72f-f5e9-4227-9404-a670c1b439b2",
+                        "name": "Minulý, přítomný a budoucí čas",
+                        "from": "2000-01-01 16:00:00",
+                        "to": "2000-01-01 18:00:00"
+                    }
+                ]
+            }
+
+## Delete Course [/-/delete-course]
+
+### Delete Existing Course [DELETE]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 19, 29, 31, 33, 38 and 39
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
+    + Body
+
+            {
+                "id": "f90fd2ab-0816-40f4-ba31-e7520baaf00a"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+## Create Course Subscription [/-/create-course-subscription]
+
+### Create New Course Subscription [POST]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 19, 26, 27, 38, 39 and 49
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: 8cf0truqfqi5kj2jk0qdzg0c7wcbym8tfdy5ftu6
+            Api-Token: asf44ba1rm4b36pbsjcdtgvqyli1d7167dti5dtfbs5auqyrmpbms1drowlu1r6j8dcwxw69knzs2kz4
+
+    + Body
+
+            {
+                "courseId": "a5aee4a0-d719-4043-a675-ca44edeb3c80"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+## Delete Course Subscription [/-/delete-course-subscription]
+
+### Delete Existing Course Subscription [DELETE]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 19, 28, 38, 39 and 50
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: 1hegga340natu0wpuef24j4qhfkcc2dohmmueww4
+            Api-Token: n40ybafgq2lfv8j331c180yvieh8agt4o7a9esf7ed8t8tocyuzi843maagqfpn5kvjmdsgl1l5stqc1
+
+    + Body
+
+            {
+                "courseId": "a5aee4a0-d719-4043-a675-ca44edeb3c80"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+## Create Lesson [/-/create-lesson]
+
+### Create New Lesson [POST]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 17, 19, 20, 21, 38, 39 and 55
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
+    + Body
+
+            {
+                "name": "Minulý, přítomný a budoucí čas",
+                "from": "2000-01-01 16:00:00",
+                "to": "2000-01-01 18:00:00",
+                "courseId": "cfdbc050-e9be-4204-ab66-1dc04064824b"
+            }
+
++ Response 200 (application/json)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+    + Body
+
+            {
+                "id": "00000000-0000-4000-a000-000000000000",
+                "name": "Minulý, přítomný a budoucí čas",
+                "from": "2000-01-01 16:00:00",
+                "to": "2000-01-01 18:00:00",
+                "course": {
+                    "id": "cfdbc050-e9be-4204-ab66-1dc04064824b",
+                    "name": "Letní doučování angličtiny",
+                    "subject": {
+                        "id": "9aa2eb45-e3e9-4fce-b403-c81389dc1152",
+                        "name": "Anglický jazyk"
+                    }
+                }
+            }
+
+## Update Lesson [/-/update-lesson/{id}]
+
++ Parameters
+  + id: `2529a465-0659-4252-b2db-0bb9d9246f4a` (required, string)
+
+### Update Existing Lesson [PATCH]
+
+**Api Errors**: 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 17, 19, 20, 21, 29, 38, 39, 51, 53 and 55
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
+    + Body
+
+            {
+                "name": "Minulý, přítomný a budoucí čas",
+                "from": "2000-01-01 16:00:00",
+                "to": "2000-01-01 18:00:00",
+                "courseId": "a5aee4a0-d719-4043-a675-ca44edeb3c80"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+## Get Lesson [/-/get-lesson/{id}]
+
++ Parameters
+  + id: `d5f3a72f-f5e9-4227-9404-a670c1b439b2` (required, string)
+
+### Get Existing Lesson [GET]
+
+**Api Errors**: 1, 2, 3, 4, 7, 19, 38 and 39
+
++ Request
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
++ Response 200 (application/json)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+    + Body
+
+            {
+                "id": "d5f3a72f-f5e9-4227-9404-a670c1b439b2",
+                "name": "Minulý, přítomný a budoucí čas",
+                "from": "2000-01-01 16:00:00",
+                "to": "2000-01-01 18:00:00",
+                "course": {
+                    "id": "cfdbc050-e9be-4204-ab66-1dc04064824b",
+                    "name": "Letní doučování angličtiny",
+                    "subject": {
+                        "id": "9aa2eb45-e3e9-4fce-b403-c81389dc1152",
+                        "name": "Anglický jazyk"
+                    }
+                }
+            }
+
+## Delete Lesson [/-/delete-lesson]
+
+### Delete Existing Lesson [DELETE]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 19, 29, 30, 32, 38 and 39
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
+    + Body
+
+            {
+                "id": "5919fd06-821a-4987-bde9-e7ce9d3ff2ec"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+## Create One-Time Lesson [/-/create-one-time-lesson]
+
+### Create New One-Time Lesson [POST]
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 15, 17, 20, 21, 38, 39, 55 and 56
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
+    + Body
+
+            {
+                "name": "Minulý, přítomný a budoucí čas",
+                "subject": "Anglický jazyk",
+                "price": 25000,
+                "from": "2000-01-01 16:00:00",
+                "to": "2000-01-01 18:00:00"
+            }
+
++ Response 200 (application/json)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+    + Body
+
+            {
+                "id": "00000000-0000-4000-a000-000000000000",
+                "name": "Minulý, přítomný a budoucí čas",
+                "from": "2000-01-01 16:00:00",
+                "to": "2000-01-01 18:00:00",
+                "course": {
+                    "id": "00000000-0000-4000-b000-000000000000",
+                    "name": null,
+                    "subject": {
+                        "id": "9aa2eb45-e3e9-4fce-b403-c81389dc1152",
+                        "name": "Anglický jazyk"
+                    },
+                    "price": 25000
+                }
+            }
+
+## Calendar [/-/calendar]
+
+### Get The Whole Calendar For Current User [GET]
+
+- Teacher has an array of courses together with an array of lessons in each course
+- Student has an array of lessons together with a course in each lesson
+
+**Api Errors**: 1, 2, 3, 4, 38 and 39
+
++ Request
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: ponpqhy5fvholdo03oqcxs5cozcwxiehlybi3fd6
+            Api-Token: e5lmi97882mbwn9it2u9pwkxxmeqi0l3k0mxwwa50l48bum5k9uxql6smzsbjo9r4uhunxzmdgsjh62w
+
++ Response 200 (application/json)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+    + Body
+
+            {
+                "forTeacherHisCourses": [
+                    {
+                        "id": "cfdbc050-e9be-4204-ab66-1dc04064824b",
+                        "name": "Letní doučování angličtiny",
+                        "subject": {
+                            "id": "9aa2eb45-e3e9-4fce-b403-c81389dc1152",
+                            "name": "Anglický jazyk"
+                        },
+                        "lessons": [
+                            {
+                                "id": "d5f3a72f-f5e9-4227-9404-a670c1b439b2",
+                                "name": "Minulý, přítomný a budoucí čas",
+                                "from": "2000-01-01 16:00:00",
+                                "to": "2000-01-01 18:00:00"
+                            }
+                        ]
+                    }
+                ],
+                "forStudentHisLessons": [
+                    {
+                        "id": "d5f3a72f-f5e9-4227-9404-a670c1b439b2",
+                        "name": "Minulý, přítomný a budoucí čas",
+                        "from": "2000-01-01 16:00:00",
+                        "to": "2000-01-01 18:00:00",
+                        "course": {
+                            "id": "cfdbc050-e9be-4204-ab66-1dc04064824b",
+                            "name": "Letní doučování angličtiny",
+                            "subject": {
+                                "id": "9aa2eb45-e3e9-4fce-b403-c81389dc1152",
+                                "name": "Anglický jazyk"
+                            }
+                        }
+                    }
+                ]
+            }
+
+## Send Payment [/-/send-payment]
+
+### Send Payment For Course [POST]
+
+This request sends payment for the course. The course is identified by its ID and the amount to be paid is not specified in the request at all, instead it is inferred from the course itself.
+
+**Api Errors**: 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 19, 38, 39, 58, 59 and 60
+
++ Request (application/json)
+
+    + Headers
+
+            Api-Key: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            Api-Client-Id: quqmme17xqaoxlju0rewuo90fd8lr9ymuf4ci57x
+            Api-Token: jylxvxvvj8hwk2bu91easrz7s0occts99a4qbcavc39w637v7noxbuatxfb488x8w9g7cn43mlly5tco
+
+    + Body
+
+            {
+                "courseId": "b4711ead-f181-4cbb-b789-f4bccebdb34e"
+            }
+
++ Response 200 (text/plain; charset=UTF-8)
+
+    + Headers
+
+            Api-Token: 5rx5spaajz99luul3eb61v9i8kt0bhovtlzwtgbvwih4fw4sotqtvjge00mxp451rfz9e27ecavwloi7
+
+## Ping [/-/ping]
+
+### Check that the application is running [GET]
+
+**Api Errors**: 4
+
++ Response 200 (application/json)
+
+    + Body
+
+            {
+                "message": "pong"
+            }

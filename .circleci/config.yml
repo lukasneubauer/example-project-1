@@ -1,0 +1,86 @@
+version: 2
+
+jobs:
+    build:
+        docker:
+            - image: cimg/base:stable
+              auth:
+                  username: $DOCKER_HUB_USERNAME
+                  password: $DOCKER_HUB_PASSWORD
+        environment:
+            API_KEY: aph8a8yf9jqmez6a8k9786v4gp988y6pp597gvqxfodcv2ozxqbpbc5qhkmrxldax3xwuhx4a1kr7b0rixxf0beypyaka1hbvdphfgbers8akwuvtbhi2nhg
+            APP_ENV: test
+            APP_DEBUG: 1
+            APP_SECRET: ThisTokenIsNotSoSecretChangeIt
+            DATABASE_USERNAME: root
+            DATABASE_PASSWORD: root
+            DATABASE_HOST: db
+            DATABASE_PORT: 3306
+            DATABASE_NAME: db
+            MAILER_DSN: null://null
+            WWW_DATA_UID: 3434
+            WWW_DATA_GID: 3434
+            ENABLE_XDEBUG: 0
+            COMPOSE_PROJECT_NAME: api
+            COMPOSE_FILE: docker/config/mysql.yml:docker/config/nginx.yml:docker/config/php.yml
+        steps:
+            - checkout
+            - run:
+                name: Install Docker Compose
+                environment:
+                    COMPOSE_VERSION: 1.29.2
+                    COMPOSE_BIN: /usr/local/bin/docker-compose
+                command: |
+                    sudo curl -fsLS "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o "$COMPOSE_BIN"
+                    sudo chmod 0775 "$COMPOSE_BIN"
+            - setup_remote_docker:
+                version: 20.10.14
+                docker_layer_caching: true
+            - run: docker-compose build
+            - run: docker-compose up -d
+            - restore_cache:
+                key: composer-cache-{{ checksum "composer.lock" }}
+            - run: test -d vendor && docker cp vendor api-php:/var/www/html/vendor || true
+            - run: docker-compose exec php composer --ansi install --no-interaction
+            - run: docker cp api-php:/var/www/html/vendor vendor
+            - save_cache:
+                key: composer-cache-{{ checksum "composer.lock" }}
+                paths:
+                    - vendor
+            - run: docker-compose exec php php scripts/console --ansi doctrine:schema:validate --skip-sync
+            - run: docker-compose exec php php scripts/console --ansi lint:container -v
+            - run: docker-compose exec php php scripts/console --ansi lint:twig templates -v
+            - run: docker-compose exec php php scripts/console --ansi lint:yaml config -v
+            - run: docker-compose exec php php scripts/console --ansi lint:yaml translations -v
+            - run: docker-compose exec php php vendor/bin/parallel-lint --colors src tests
+            - run: docker-compose exec php php vendor/bin/php-cs-fixer --ansi fix -v --diff --show-progress dots --dry-run
+            - run: docker-compose exec php php vendor/bin/phpmd src,tests text unusedcode
+            - run: docker-compose exec php php vendor/bin/phpstan --ansi analyse --level 6 --configuration phpstan.neon --memory-limit 512M src tests
+            - run: docker-compose exec php php scripts/console --ansi doctrine:database:create --if-not-exists
+            - run: docker-compose exec php php scripts/console --ansi doctrine:schema:drop --full-database --force
+            - run: docker-compose exec php php scripts/console --ansi doctrine:migrations:migrate --no-interaction
+            - run: docker-compose exec php php scripts/load_fixtures_for_phpunit
+            - run: docker-compose exec php php vendor/bin/phpunit --colors=always --log-junit=test-results/phpunit/results.xml
+            - run: docker-compose exec php php scripts/console --ansi doctrine:schema:drop --full-database --force
+            - run: docker-compose exec php php scripts/console --ansi doctrine:migrations:migrate --no-interaction
+            - run: docker-compose exec php php scripts/load_fixtures_for_dredd
+            - restore_cache:
+                key: npm-cache-{{ checksum "package-lock.json" }}
+            - run: test -d node_modules && docker cp node_modules api-php:/var/www/html/node_modules || true
+            - run: docker-compose exec php npm ci
+            - run: docker cp api-php:/var/www/html/node_modules node_modules
+            - save_cache:
+                key: npm-cache-{{ checksum "package-lock.json" }}
+                paths:
+                    - node_modules
+            - run: docker-compose exec php node node_modules/.bin/dredd --reporter xunit --output test-results/dredd/results.xml
+            - run:
+                command: docker cp api-php:/var/www/html/var/log logs
+                when: always
+            - run:
+                command: docker cp api-php:/var/www/html/test-results test-results
+                when: always
+            - store_artifacts:
+                path: logs
+            - store_test_results:
+                path: test-results
